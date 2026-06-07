@@ -4,6 +4,8 @@
 > 作品名称：Local Duplex Voice Gateway  
 > 推荐标签：`Intel AI PC`、`AIPC`、`OpenVINO`、`Agentic AI`、`Skills`、`Voice Agent`
 
+![Local Duplex Voice Gateway 封面](https://raw.githubusercontent.com/Chengyuann/local-duplex-voice-gateway/main/assets/cover.jpg)
+
 我一开始并不想再做一个普通的“语音转文字”工具。ASR、TTS 这些能力已经有很多成熟模型了，真正让我觉得还缺一块的是：语音 Agent 怎么像一个正常交流对象一样处理节奏。
 
 人和人说话时不会严格遵守“你说完，我再说”的队列。我们会停顿，会补充，会临时改口，也会在对方说话时插一句“等一下”。如果语音助手只会把 ASR 结果丢给大模型，再把回复交给 TTS 播放，它能跑，但很容易显得迟钝。用户说“然后……”时它抢先执行，用户说“等一下”时它还在继续念上一段回复，这种体验会让人很快放弃语音入口。

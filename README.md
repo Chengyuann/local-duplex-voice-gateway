@@ -1,5 +1,7 @@
 # Local Duplex Voice Gateway
 
+![Local Duplex Voice Gateway cover](assets/cover.jpg)
+
 一个面向 AI PC 的本地语音 Agent Skill。它不只是 ASR 或 TTS demo，而是语音 Agent 的 turn-taking 控制层：判断用户是否说完、是否短暂停顿、是否插话打断、是否应该提交给 Agent 大脑。
 
 ## 为什么做这个
