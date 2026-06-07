@@ -12,6 +12,8 @@
 
 这个方向和 AI PC 很贴。语音是高频交互，延迟稍微高一点就会明显影响体验；语音内容又经常包含私人信息、会议内容、代码需求、工作安排，不适合默认上传。AI PC 的本地算力可以把这部分放回用户设备上，云端只在必要时处理非敏感协作内容。这就是我理解的 Hybrid AI：不是所有东西都塞进本地，也不是所有东西都交给云端，而是把最靠近用户、最需要低延迟和隐私保护的环节放在端侧。
 
+![Local Duplex Voice Gateway 架构](https://raw.githubusercontent.com/Chengyuann/local-duplex-voice-gateway/main/assets/architecture.svg)
+
 ## 我想解决的具体问题
 
 语音 Agent 难用，很多时候不是模型不够聪明，而是它不会处理“话轮”。我把常见问题拆成了几个很具体的场景。
@@ -41,6 +43,8 @@ Agent：停止当前 TTS，重新整理意图：优先检查付款周期。
 
 它可以放在很多产品里。桌面语音 Copilot 可以用它做本地工具入口；AI coding 助手可以用它接收口头需求和中途修正；会议助手可以用它避免过早切断发言；语音桌宠或情感陪伴产品可以用它减少抢话，让对话更像自然交流。它不是一个单点能力，而是一层语音交互网关。
 
+我自己更喜欢把它理解成“语音前台”。真正的 Agent 大脑可以在后面做规划、调用文件、写代码、查日历；Gateway 站在前台，负责处理用户说话的节奏。用户说得快、说一半改口、打断系统，都先由它消化成稳定事件，再交给后面的 Agent。这样整个系统不会因为一句半截话就开始乱执行。
+
 ## 整体架构
 
 Local Duplex Voice Gateway 的工作流是这样的：
@@ -56,6 +60,8 @@ Local Duplex Voice Gateway 的工作流是这样的：
     -> 用户插话时 interrupt_tts
 ```
 
+![全双工语音事件时间线](https://raw.githubusercontent.com/Chengyuann/local-duplex-voice-gateway/main/assets/timeline.svg)
+
 这里的关键不是某一个模型，而是事件协议。Gateway 输出的事件很少，但每个都直接对应 Agent 行为：
 
 | 事件 | 作用 |
@@ -68,6 +74,8 @@ Local Duplex Voice Gateway 的工作流是这样的：
 | `tts_finished` | Agent 说完 |
 
 这样的设计有一个好处：ASR、VAD、TTS、EOU 模型都可以替换，但 Agent 看到的协议不变。今天可以用 demo JSONL 验证逻辑，明天可以接 ModelScope 上的 SenseVoiceSmall、FSMN-VAD、CosyVoice2 或 TEN Turn Detection。Skill 的价值在于把这些模型组织成稳定的语音工作流，而不是把仓库绑死在某一个大模型上。
+
+为了让这个协议更清楚，我在代码里没有直接写“语音助手回复什么”，而是只输出动作。比如 `hold` 不代表系统要沉默很久，它只是告诉 Agent：现在不要急着执行；`interrupt_tts` 也不只是停止播放，它还意味着上一轮回复已经被用户否定或修正，需要重新组织上下文。
 
 ## 为什么适合 35B 以下本地模型
 
@@ -88,6 +96,28 @@ Local Duplex Voice Gateway 的工作流是这样的：
 第三层是 turn detection。这里我更关注 `TEN-framework/TEN_Turn_Detection`。它在 ModelScope 上就是面向 full-duplex dialogue communication 的 turn detection 模型，用来识别人机对话里的自然话轮信号。这个模型和本项目非常贴，因为它不是解决“听到了什么”，而是解决“现在该不该轮到 Agent 说话”。
 
 第四层是 TTS。`iic/CosyVoice2-0.5B` 可以作为语音输出层的参考，它是 0.5B 级 TTS 模型，模型卡里提到 streaming inference 相关优化。接入后，Gateway 里的 `tts_started`、`tts_finished`、`interrupt_tts` 就可以真正控制语音播放。
+
+这套接入方式不是一次性把所有模型都装上，而是分阶段替换 adapter。最小版本可以只用已有 ASR 文本流；下一步加入 VAD，让时间边界更准；再下一步加入 TEN Turn Detection，让“等一等”和“说完了”的判断更自然；最后接入本地 TTS，让打断从事件变成真实播放控制。这样做的好处是每一步都能单独验证，不会因为某个大模型跑不起来导致整个 Skill 不可用。
+
+一个更接近真实部署的 adapter 形态大概是：
+
+```python
+for chunk in local_asr_stream(audio):
+    gateway.push({
+        "t": chunk.time,
+        "type": "asr_partial",
+        "text": chunk.text,
+        "speech": chunk.is_speech,
+    })
+
+for decision in gateway.events():
+    if decision.action == "commit_turn":
+        agent.run(decision.text)
+    elif decision.action == "interrupt_tts":
+        tts.stop()
+```
+
+这里的 `local_asr_stream` 可以来自 SenseVoiceSmall，也可以来自 Paraformer 或其他本地 ASR。Gateway 不关心模型名字，只关心事件格式。
 
 端到端模型也值得参考。Qwen2.5-Omni-7B 是 7B 级多模态模型，支持音频理解和自然语音输出；MiniCPM-o 2.6 是约 8B 的端侧多模态模型，强调实时语音对话；MiniCPM-o 4.5 约 9B，模型卡强调 full-duplex multimodal live streaming；Moshi 也提供了 full-duplex spoken dialogue framework 的产品形态参考。这些模型说明全双工语音正在变成一个明确方向，但在本项目里，我更希望保留 Gateway 协议，让不同模型可以按需替换。
 
@@ -112,6 +142,8 @@ TTS 也是第二个适合优化的位置。语音 Agent 不只是要听得快，
 ```
 
 这样，高频、隐私敏感、个性化强的语音部分留在本机；需要云端协作时，只传非敏感摘要或结构化结果。这比把整段音频和上下文直接丢到云端更适合 AI PC。
+
+如果后续做成产品，我会把 OpenVINO 优化结果放进报告页：例如 VAD 平均延迟、ASR 首 token 延迟、EOU 判断耗时、TTS 首包时间。语音体验很依赖这些数字，文章里讲“低延迟”不够，最后还是要把这些指标跑出来。
 
 ## 当前仓库怎么验证
 
@@ -145,6 +177,8 @@ TTS interruptions: 1
 
 这个 demo 验证了一个完整过程：用户先发出任务，Agent 开始回复，用户中途打断并修正目标，Gateway 停止当前 TTS 并提交新的意图。
 
+这类场景在 AI coding 里尤其常见。用户一开始可能说“帮我重构这个函数”，Agent 刚准备执行，用户又补一句“等一下，不要改接口，只优化内部逻辑”。如果系统不能打断，Agent 可能已经开始做错误的修改；如果系统能捕捉这个打断，它就会把约束追加到新的 turn 里，后续工具调用会更稳。
+
 另一个 demo 验证短暂停顿：
 
 ```bash
@@ -171,6 +205,8 @@ PASS short_pause_continuation: hold before commit
 ```
 
 这两个测试虽然小，但覆盖了语音 Agent 最容易影响体验的两件事：可打断，以及短暂停顿时继续等待。
+
+我没有在当前版本里把 demo 做得很复杂，是有意的。语音系统一旦接上真实麦克风、真实 ASR 和真实 TTS，问题会变多：噪声、重叠语音、识别延迟、用户口头禅、模型首包时间都会影响结果。所以我先把最小状态机做清楚，保证在可控输入下动作正确。后续接模型时，问题会集中在 adapter 和阈值调优，不会把 Agent 事件协议也一起搅乱。
 
 ## 它怎么变成可复用 Skill
 
@@ -208,6 +244,12 @@ Gateway 就能输出稳定的 Agent 事件。Agent 不需要知道底层用的�
     -> 本地 TTS
     -> 用户随时打断、修正、继续
 ```
+
+更具体一点，后续版本我会把产品拆成四个模式。
+
+会议模式里，Gateway 会更保守地处理停顿，因为会议发言经常有思考停顿，不能太快打断；AI coding 模式里，打断优先级更高，因为用户修正需求通常意味着前一轮执行方向要变；陪伴模式里，系统应该少抢话，多给用户留停顿空间；无障碍模式则更强调稳定确认，避免误触发关键操作。
+
+这些模式不需要重写整个系统，只需要调整 Gateway 的策略参数和 Agent 提示。比如 `eou_silence_ms`、继续提示词、打断词、最短提交长度，都可以按场景配置。对于 AI PC 来说，这种个人化配置很有价值：同一个语音 Gateway，可以变成开发者的语音工作台，也可以变成普通用户的桌面语音助手。
 
 ## 小结
 
