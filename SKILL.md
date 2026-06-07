@@ -42,10 +42,13 @@ Local Duplex Voice Gateway 把语音 Agent 中最容易失控的部分拆出来�
 
 真实部署时推荐接入：
 
-- ASR：Whisper / SenseVoice / Paraformer 等本地 ASR，OpenVINO 优化优先。
+- ASR：ModelScope `iic/SenseVoiceSmall` 或 Paraformer 系列；也可替换为其他本地 ASR。
+- VAD：ModelScope `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。
 - EOU：轻量 turn detection 模型，或 35B 以下本地模型辅助判断。
-- TTS：Piper / ChatTTS / F5-TTS / CosyVoice / Qwen-Omni 系列语音输出。
+- TTS：ModelScope `iic/CosyVoice2-0.5B` 或其他本地 TTS。
 - Agent 大脑：Ollama + Qwen3.6-35B-A3B / openBMB4.5 系列 / 其他 35B 以下模型。
+
+ModelScope 语音模型接入建议见 `references/modelscope-voice-stack.md`。
 
 ## 工作流程
 

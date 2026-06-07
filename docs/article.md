@@ -89,7 +89,15 @@ Local Duplex Voice Gateway 的核心链路是：
 
 ## 模型与 OpenVINO 规划
 
-我调研了几个当前适合参考的本地语音模型方向，主要看三件事：参数量是否低于 35B，是否支持实时语音/流式对话，是否有本地部署或开源生态。
+我重新按 ModelScope 模型库梳理了一套更实际的语音栈。因为你本机不一定已经有这些模型，所以当前仓库不强制下载模型；文章和设计里把它们作为可接入 adapter，先让 Skill 的事件协议和控制层跑通。
+
+基础链路可以从 ModelScope 的 FunASR 生态开始。`iic/speech_fsmn_vad_zh-cn-16k-common-pytorch` 可以作为 VAD 层，用于检测有效语音片段的起止时间；`iic/SenseVoiceSmall` 可以作为 ASR 层，模型卡提供了 FunASR `AutoModel` 的用法，并支持自动语言识别、VAD 切分和 ITN；长音频或会议场景可以参考 `iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch`，它把 VAD、ASR、标点和时间戳集成在一起。
+
+Turn detection 层可以优先关注 `TEN-framework/TEN_Turn_Detection`。它在 ModelScope 上的定位就是 full-duplex dialogue communication 的 turn detection，用来识别人机对话中的自然 turn-taking cues。这个模型方向和本项目最贴近：它不是识别文字，也不是合成语音，而是判断“用户是不是该交给 Agent 了”。
+
+TTS 层可以用 `iic/CosyVoice2-0.5B` 作为本地语音输出参考。CosyVoice2 是 0.5B 级 TTS，ModelScope 模型卡里提到 streaming inference 相关优化，适合后续接到 `tts_started / tts_finished / interrupt_tts` 这些事件上。
+
+在端到端语音模型方向，我主要看三件事：参数量是否低于 35B，是否支持实时语音/流式对话，是否有本地部署或开源生态。
 
 Qwen2.5-Omni-7B 是 7B 级端到端多模态模型，官方介绍里强调它可以处理文本、图像、音频和视频，并通过文本生成和自然语音合成提供实时流式响应。它适合作为“语音 Agent 大脑 + 语音输出”的参考方向。
 

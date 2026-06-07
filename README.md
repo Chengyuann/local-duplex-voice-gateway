@@ -51,7 +51,8 @@ demo 使用 JSONL 模拟流式 ASR/VAD/TTS 事件：
 
 当前仓库先提供可复现的语音网关控制层。实际产品接入时：
 
-- OpenVINO 加速 ASR / VAD / EOU 模型，降低端侧延迟。
+- ModelScope VAD/ASR/TTS 模型作为本地语音工具来源，详见 `references/modelscope-voice-stack.md`。
+- OpenVINO 加速 ASR / VAD / EOU / TTS 模型，降低端侧延迟。
 - 35B 以下本地模型作为 Agent 大脑，负责理解用户意图和调用工具。
 - 本地 TTS 负责语音回复。
 - Gateway 管理打断、端点判断和会话状态。
