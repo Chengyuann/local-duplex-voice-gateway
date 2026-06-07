@@ -89,13 +89,17 @@ Local Duplex Voice Gateway 的核心链路是：
 
 ## 模型与 OpenVINO 规划
 
-我调研了几个当前适合参考的本地语音模型方向。
+我调研了几个当前适合参考的本地语音模型方向，主要看三件事：参数量是否低于 35B，是否支持实时语音/流式对话，是否有本地部署或开源生态。
 
-Qwen2.5-Omni-7B 是 7B 级端到端多模态模型，支持语音/音频理解和自然语音输出，适合参考实时语音 Agent 的整体形态。MiniCPM-o 2.6 约 8B 参数，强调端侧多模态、语音交互和低延迟，对 AI PC 语音助手也很有参考价值。Kyutai Moshi 是 7B 级实时语音对话模型，公开材料强调 streaming conversation 和 full-duplex，这正好对应本项目的产品方向。
+Qwen2.5-Omni-7B 是 7B 级端到端多模态模型，官方介绍里强调它可以处理文本、图像、音频和视频，并通过文本生成和自然语音合成提供实时流式响应。它适合作为“语音 Agent 大脑 + 语音输出”的参考方向。
+
+MiniCPM-o 2.6 是 OpenBMB 的端侧多模态模型，总参数约 8B，由视觉、音频理解、语音合成和 Qwen2.5-7B 语言模型等组件组成。官方文档强调它支持实时语音对话和多模态 live streaming，这一点非常贴近 AI PC 上的语音 Copilot。
+
+Kyutai Moshi 则是 full-duplex spoken dialogue framework 的直接参考。Moshi 的公开介绍明确把它定位为 speech-text foundation model 和 full-duplex spoken dialogue framework，并指出传统 VAD、ASR、文本对话、TTS 串联方案会带来延迟和信息损失。这个判断和本项目的出发点一致：全双工语音体验不能只靠简单串联。
 
 不过本作品没有把核心能力绑定到某一个模型上。原因是语音 Agent 的工程形态会持续变化，ASR、TTS、EOU 都可能替换。Local Duplex Voice Gateway 保留的是 Agent-facing 的事件协议和 turn-taking 逻辑。
 
-OpenVINO 的位置主要有三层：
+OpenVINO 的位置主要有三层。OpenVINO GenAI 已经提供 Text2SpeechPipeline 和 speech generation 示例，说明本地语音生成链路可以纳入 OpenVINO 生态；同时 OpenVINO notebooks 里也有 text-to-speech、Qwen2.5-Omni、MiniCPM-o 等相关示例方向，适合后续把 demo 网关升级成真实 AI PC 语音工作流。
 
 ```text
 ASR / VAD 加速
