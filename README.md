@@ -2,11 +2,11 @@
 
 ![Local Duplex Voice Gateway cover](assets/cover.jpg)
 
-一个面向 AI PC 的本地语音 Agent Skill。它不只是 ASR 或 TTS demo，而是语音 Agent 的 turn-taking 控制层：判断用户是否说完、是否短暂停顿、是否插话打断、是否应该提交给 Agent 大脑。
+一个面向 AI PC 的本地语音 Agent Skill。它不是单纯的 ASR 或 TTS demo，而是语音 Agent 的 turn-taking 控制层：判断用户是否说完、是否短暂停顿、是否插话打断、是否应该提交给 Agent 大脑。
 
 ## 为什么做这个
 
-语音 Agent 真正难用的地方，往往不是“识别一句话”，而是这些细节：
+语音 Agent 难用的地方，很多时候不是“识别一句话”，而是这些细节：
 
 - 用户停顿 300ms，是想继续说，还是已经说完？
 - TTS 还在播放时用户插话，要不要立刻停？
@@ -90,7 +90,25 @@ python client/gateway_client.py /path/to/demo.wav \
 
 ## OpenVINO 检查与导出
 
-检查 OpenVINO runtime：
+当前仓库已包含一个轻量 OpenVINO EOU policy，用于在 Gateway 热路径中判断 `hold` / `commit`。先运行 benchmark：
+
+```bash
+python adapters/openvino_eou.py \
+  --model-xml models/openvino/eou_policy.xml \
+  --device CPU \
+  --iterations 50 \
+  --output docs/evidence/openvino_eou_benchmark.json
+```
+
+再让 Gateway 使用 OpenVINO EOU 模型：
+
+```bash
+python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
+  --openvino-eou-model models/openvino/eou_policy.xml \
+  --output docs/evidence/openvino_gateway_report.md
+```
+
+也可以检查 OpenVINO runtime：
 
 ```bash
 python adapters/openvino_placeholder.py --output reports/openvino_check.json

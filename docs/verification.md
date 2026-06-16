@@ -62,21 +62,60 @@ OpenVINO export dry run:
 }
 ```
 
-OpenVINO runtime check on the current development machine:
+OpenVINO EOU policy benchmark:
+
+```bash
+python adapters/openvino_eou.py \
+  --model-xml models/openvino/eou_policy.xml \
+  --device CPU \
+  --iterations 50 \
+  --output docs/evidence/openvino_eou_benchmark.json
+python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
+  --openvino-eou-model models/openvino/eou_policy.xml \
+  --output docs/evidence/openvino_gateway_report.md
+```
+
+Observed result:
 
 ```json
 {
-  "runtime": {
-    "available": false,
-    "error": "openvino is not installed"
+  "device": "CPU",
+  "iterations": 50,
+  "avg_latency_ms": 0.0707,
+  "min_latency_ms": 0.0399,
+  "max_latency_ms": 1.0453,
+  "last_decision": {
+    "action": "commit",
+    "hold_score": -1.7627,
+    "commit_score": 2.4102,
+    "latency_ms": 0.071
   }
 }
 ```
 
-This environment does not have OpenVINO installed, so the repository includes a runtime check and IR benchmark helper rather than claiming accelerated latency numbers. On an Intel AI PC with OpenVINO installed, run:
+Gateway output with OpenVINO EOU policy:
+
+```text
+PASS openvino_eou_policy: OpenVINO model used in gateway
+```
+
+OpenVINO runtime check:
+
+```json
+{
+  "runtime": {
+    "available": true,
+    "version": "2025.3.0-19807-44526285f24-releases/2025/3",
+    "devices": ["CPU"]
+  }
+}
+```
+
+OpenVINO EOU is now part of the Gateway execution path. The benchmark above uses `adapters/openvino_eou.py`, and `docs/evidence/openvino_gateway_report.md` shows Gateway decisions with reasons `OpenVINO EOU policy selected hold` and `OpenVINO EOU policy selected commit`.
+
+For exported speech IR models, run:
 
 ```bash
-python adapters/openvino_placeholder.py --output docs/evidence/openvino_check.json
 python adapters/openvino_placeholder.py --model-xml models/openvino/sensevoice/openvino_model.xml --device CPU --iterations 10 --output docs/evidence/openvino_benchmark.json
 ```
 

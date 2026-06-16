@@ -1,6 +1,9 @@
 {
   "runtime": {
-    "available": false,
-    "error": "openvino is not installed"
+    "available": true,
+    "version": "2025.3.0-19807-44526285f24-releases/2025/3",
+    "devices": [
+      "CPU"
+    ]
   }
 }

@@ -6,13 +6,13 @@
 
 ![Local Duplex Voice Gateway 封面](https://raw.githubusercontent.com/Chengyuann/local-duplex-voice-gateway/main/assets/cover.jpg)
 
-我一开始并不想再做一个普通的“语音转文字”工具。ASR、TTS 这些能力已经有很多成熟模型了，真正让我觉得还缺一块的是：语音 Agent 怎么像一个正常交流对象一样处理节奏。
+我最初避开了“再做一个语音转文字工具”的方向。ASR、TTS 已经有不少成熟模型，语音 Agent 缺的往往是另一层能力：它要知道什么时候继续听，什么时候先等一下，什么时候停止当前回复。
 
 人和人说话时不会严格遵守“你说完，我再说”的队列。我们会停顿，会补充，会临时改口，也会在对方说话时插一句“等一下”。如果语音助手只会把 ASR 结果丢给大模型，再把回复交给 TTS 播放，它能跑，但很容易显得迟钝。用户说“然后……”时它抢先执行，用户说“等一下”时它还在继续念上一段回复，这种体验会让人很快放弃语音入口。
 
 所以我把这个 Skill 的目标放在语音 Agent 的“中间层”：它不替代 ASR，也不替代 TTS，而是管理听说之间的 turn-taking。Local Duplex Voice Gateway 要判断用户是在继续说、短暂停顿、已经说完，还是正在打断当前 TTS。它把这些状态变成 Agent 可以消费的事件，再交给 35B 以下本地模型作为大脑去理解和调用工具。
 
-这个方向和 AI PC 很贴。语音是高频交互，延迟稍微高一点就会明显影响体验；语音内容又经常包含私人信息、会议内容、代码需求、工作安排，不适合默认上传。AI PC 的本地算力可以把这部分放回用户设备上，云端只在必要时处理非敏感协作内容。这就是我理解的 Hybrid AI：不是所有东西都塞进本地，也不是所有东西都交给云端，而是把最靠近用户、最需要低延迟和隐私保护的环节放在端侧。
+这个方向和 AI PC 很贴。语音是高频交互，延迟稍微高一点就会明显影响体验；语音内容又经常包含私人信息、会议内容、代码需求、工作安排，不适合默认上传。AI PC 的本地算力可以把这部分放回用户设备上，云端只在必要时处理非敏感协作内容。我的设计原则也很简单：靠近用户、需要低延迟、涉及隐私的环节放在端侧。
 
 ![Local Duplex Voice Gateway 架构](https://raw.githubusercontent.com/Chengyuann/local-duplex-voice-gateway/main/assets/architecture.svg)
 
@@ -30,7 +30,7 @@
 
 ## 产品形态
 
-我希望用户使用它时不需要理解底层模型，只需要自然地说话。
+用户使用它时不需要理解底层模型，只需要自然地说话。
 
 一个理想流程是这样的：
 
@@ -43,9 +43,9 @@ Agent：停止当前 TTS，重新整理意图：优先检查付款周期。
 
 在这个过程中，Local Duplex Voice Gateway 做了三件事：先把“帮我总结这份合同”提交给 Agent；当 TTS 开始播放后继续监听；听到“等一下”时触发打断，并把“先重点看付款周期”作为新的用户意图提交。
 
-它可以放在很多产品里。桌面语音 Copilot 可以用它做本地工具入口；AI coding 助手可以用它接收口头需求和中途修正；会议助手可以用它避免过早切断发言；语音桌宠或情感陪伴产品可以用它减少抢话，让对话更像自然交流。它不是一个单点能力，而是一层语音交互网关。
+它可以放在很多产品里。桌面语音 Copilot 可以用它做本地工具入口；AI coding 助手可以用它接收口头需求和中途修正；会议助手可以用它避免过早切断发言；语音桌宠或情感陪伴产品可以用它减少抢话，让对话更像自然交流。它更像一层语音交互网关，而不是孤立的单点能力。
 
-我自己更喜欢把它理解成“语音前台”。真正的 Agent 大脑可以在后面做规划、调用文件、写代码、查日历；Gateway 站在前台，负责处理用户说话的节奏。用户说得快、说一半改口、打断系统，都先由它消化成稳定事件，再交给后面的 Agent。这样整个系统不会因为一句半截话就开始乱执行。
+它更像一个“语音前台”。Agent 大脑在后面做规划、调用文件、写代码、查日历；Gateway 站在前台，处理用户说话的节奏。用户说得快、说一半改口、打断系统，都先被整理成稳定事件，再交给后面的 Agent。这样系统不会因为一句半截话就开始乱执行。
 
 ## 整体架构
 
@@ -77,7 +77,7 @@ Local Duplex Voice Gateway 的工作流是这样的：
 
 这样的设计有一个好处：ASR、VAD、TTS、EOU 模型都可以替换，但 Agent 看到的协议不变。今天可以用 demo JSONL 验证逻辑，明天可以接 ModelScope 上的 SenseVoiceSmall、FSMN-VAD、CosyVoice2 或 TEN Turn Detection。Skill 的价值在于把这些模型组织成稳定的语音工作流，而不是把仓库绑死在某一个大模型上。
 
-为了让这个协议更清楚，我在代码里没有直接写“语音助手回复什么”，而是只输出动作。比如 `hold` 不代表系统要沉默很久，它只是告诉 Agent：现在不要急着执行；`interrupt_tts` 也不只是停止播放，它还意味着上一轮回复已经被用户否定或修正，需要重新组织上下文。
+为了让这个协议更清楚，我在代码里没有直接写“语音助手回复什么”，而是只输出动作。比如 `hold` 不代表系统要沉默很久，它只是告诉 Agent：现在不要急着执行；`interrupt_tts` 也不只是在停止播放，它还意味着上一轮回复已经被用户否定或修正，需要重新组织上下文。
 
 ## 为什么适合 35B 以下本地模型
 
@@ -85,7 +85,7 @@ Local Duplex Voice Gateway 的工作流是这样的：
 
 这样分工更合理。VAD、EOU、打断检测这些高频判断由轻量层处理，Agent 大脑不用被 ASR partial 不断打扰；等 Gateway 判断“这一轮可以提交”之后，本地模型再做规划。对 Qwen3.6-35B-A3B、openBMB4.5 或其他 35B 以下模型来说，这种输入更稳定，也更适合做工具调用。
 
-在 QwenPaw、Trae、Ollama 这类本地 Agent 环境里，它可以被包装成一个本地工具。用户说话，ASR adapter 输出分片，Gateway 产生事件，本地模型只消费最终 turn。这也是我理解的 Agentic AI：模型不是孤立聊天，而是根据事件状态调用本地工具。
+在 QwenPaw、Trae、Ollama 这类本地 Agent 环境里，它可以被包装成一个本地工具。用户说话，ASR adapter 输出分片，Gateway 产生事件，本地模型只消费最终 turn。在这个结构里，模型不是孤立聊天，而是根据事件状态调用本地工具。
 
 ## 按 ModelScope 模型库接入
 
@@ -97,7 +97,7 @@ Local Duplex Voice Gateway 的工作流是这样的：
 
 第三层是 turn detection。这里我更关注 `TEN-framework/TEN_Turn_Detection`。它在 ModelScope 上就是面向 full-duplex dialogue communication 的 turn detection 模型，用来识别人机对话里的自然话轮信号。这个模型和本项目非常贴，因为它不是解决“听到了什么”，而是解决“现在该不该轮到 Agent 说话”。
 
-第四层是 TTS。`iic/CosyVoice2-0.5B` 可以作为语音输出层的参考，它是 0.5B 级 TTS 模型，模型卡里提到 streaming inference 相关优化。接入后，Gateway 里的 `tts_started`、`tts_finished`、`interrupt_tts` 就可以真正控制语音播放。
+第四层是 TTS。`iic/CosyVoice2-0.5B` 可以作为语音输出层的参考，它是 0.5B 级 TTS 模型，模型卡里提到 streaming inference 相关优化。接入后，Gateway 里的 `tts_started`、`tts_finished`、`interrupt_tts` 就可以控制语音播放。
 
 这套接入方式不是一次性把所有模型都装上，而是分阶段替换 adapter。最小版本可以只用已有 ASR 文本流；下一步加入 VAD，让时间边界更准；再下一步加入 TEN Turn Detection，让“等一等”和“说完了”的判断更自然；最后接入本地 TTS，让打断从事件变成真实播放控制。这样做的好处是每一步都能单独验证，不会因为某个大模型跑不起来导致整个 Skill 不可用。
 
@@ -123,7 +123,7 @@ for decision in gateway.events():
 
 端到端模型也值得参考。Qwen2.5-Omni-7B 是 7B 级多模态模型，支持音频理解和自然语音输出；MiniCPM-o 2.6 是约 8B 的端侧多模态模型，强调实时语音对话；MiniCPM-o 4.5 约 9B，模型卡强调 full-duplex multimodal live streaming；Moshi 也提供了 full-duplex spoken dialogue framework 的产品形态参考。这些模型说明全双工语音正在变成一个明确方向，但在本项目里，我更希望保留 Gateway 协议，让不同模型可以按需替换。
 
-收到预审核建议后，我把这部分从“规划”往“可接入代码”推进了一步。仓库现在新增了 `adapters/modelscope_speech.py`，它不是伪代码，而是一个可运行的 ModelScope/FunASR adapter：输入本地 wav，调用 FSMN-VAD 和 SenseVoiceSmall，输出 Gateway 能消费的 JSONL 事件。也就是说，当前仓库不再只有手写 JSONL demo，而是有了一条真实音频进入 Gateway 的代码路径。
+收到预审核建议后，我把这部分从“规划”往“可接入代码”推进了一步。仓库现在新增了 `adapters/modelscope_speech.py`，它是一个可运行的 ModelScope/FunASR adapter：输入本地 wav，调用 FSMN-VAD 和 SenseVoiceSmall，输出 Gateway 能消费的 JSONL 事件。也就是说，当前仓库不再只有手写 JSONL demo，而是有了一条真实音频进入 Gateway 的代码路径。
 
 对应命令如下：
 
@@ -138,7 +138,7 @@ python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
 
 我也补了 `scripts/prepare_models.py`，用于按 ModelScope 模型 ID 下载 VAD、ASR、TTS 和 turn detection 相关模型。评审者如果暂时不想下载模型，可以先运行 `--dry-run` 查看模型清单；如果本地环境已经准备好，就可以直接跑真实 wav 链路。
 
-目前我已经在本机跑通了轻量的真实 VAD 链路。用 macOS `say` 生成一段本地语音，再用 ffmpeg 转成 16k mono wav，随后调用 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。第一次未缓存运行会从 ModelScope 下载 VAD 模型，模型加载约 2.19 秒，单次推理约 28.1ms，输出语音片段 `[[0, 4460]]`。缓存后通过 adapter 跑同一条链路，VAD 耗时约 1.42 秒。这个结果至少证明当前仓库已经能接入真实 ModelScope 本地语音模型，而不是只停留在 JSONL 状态机。
+目前我已经在本机跑通了轻量的真实 VAD 链路。用 macOS `say` 生成一段本地语音，再用 ffmpeg 转成 16k mono wav，随后调用 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。第一次未缓存运行会从 ModelScope 下载 VAD 模型，模型加载约 2.19 秒，单次推理约 28.1ms，输出语音片段 `[[0, 4460]]`。缓存后通过 adapter 跑同一条链路，VAD 耗时约 1.42 秒。这个结果至少证明当前仓库已经能接入真实 ModelScope 本地语音模型，而不再停在 JSONL 状态机。
 
 VAD-only 链路没有 ASR 文本，所以 Gateway 不会生成 `commit_turn`；它的作用是把真实音频变成 speech/silence 时间事件。去掉 `--vad-only` 后，adapter 会继续调用 SenseVoiceSmall 生成文本，再把文本和 VAD 时间一起交给 Gateway。
 
@@ -157,36 +157,36 @@ python client/gateway_client.py /path/to/demo.wav --server http://127.0.0.1:8765
 
 ## OpenVINO 放在哪
 
-OpenVINO 不应该只是文章里的一个关键词。它在这个项目里有明确位置。
+OpenVINO 这次不再停留在文档规划里。我补了一个轻量 EOU policy 模型，用 OpenVINO Runtime 在 Gateway 热路径中判断 `hold` 和 `commit`。
 
-VAD 和 ASR 是第一批适合加速的模块。语音交互对延迟很敏感，尤其是端点判断。如果用户说完后系统还要等一两秒才反应，体验会很差。通过 OpenVINO 优化 VAD、ASR 或 EOU 小模型，可以把这部分延迟压低。
+VAD、ASR 和 EOU 都适合做端侧加速，其中 EOU 最容易先落地。它的输入不是原始音频，而是几个本地特征：静音时长、文本长度、是否有继续说的提示、是否有结束提示。`adapters/openvino_eou.py` 会构建一个很小的 OpenVINO IR 模型，输出 hold / commit 分数。这个模型不大，但它证明 Gateway 可以在话轮判断中真实调用 OpenVINO Runtime。
 
 TTS 也是第二个适合优化的位置。语音 Agent 不只是要听得快，也要回得快。OpenVINO GenAI 已经有 Text2SpeechPipeline 和 speech generation 方向的示例，说明本地语音生成链路可以纳入 OpenVINO 生态。等接入真实 TTS adapter 后，`interrupt_tts` 也可以从 demo 事件变成真实播放控制。
 
-这次返修里，我补了两个和 OpenVINO 相关的实际脚本。`adapters/openvino_placeholder.py` 会检查本机 OpenVINO runtime 是否可用，并在给定 IR 模型时做简单 latency benchmark；`scripts/export_openvino.py` 则记录 Optimum Intel 导出命令，方便把兼容模型导出到 OpenVINO IR。不同语音模型的导出兼容性不完全一样，所以我没有在仓库里伪造“已经全部 OpenVINO 加速”的结果，而是把检查、导出和 benchmark 路径补齐。
+实测命令如下：
 
 现在可以这样检查：
 
 ```bash
-python adapters/openvino_placeholder.py --output reports/openvino_check.json
-python scripts/export_openvino.py \
-  --model iic/SenseVoiceSmall \
-  --task automatic-speech-recognition \
-  --output models/openvino/sensevoice \
-  --dry-run
-```
-
-如果已经有导出的 IR 模型，可以继续跑：
-
-```bash
-python adapters/openvino_placeholder.py \
-  --model-xml models/openvino/sensevoice/openvino_model.xml \
+python adapters/openvino_eou.py \
+  --model-xml models/openvino/eou_policy.xml \
   --device CPU \
-  --iterations 10 \
-  --output reports/openvino_benchmark.json
+  --iterations 50 \
+  --output docs/evidence/openvino_eou_benchmark.json
+
+python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
+  --openvino-eou-model models/openvino/eou_policy.xml \
+  --output docs/evidence/openvino_gateway_report.md
 ```
 
-我本机这次没有安装 OpenVINO runtime，所以检查结果会记录 `openvino is not installed`。这不是为了回避实现，而是把环境差异显式写入报告。等在 Intel AI PC 或评审环境安装 OpenVINO 后，这个脚本就能输出可对比的设备列表和延迟数据。
+本机 CPU 上 50 次推理平均耗时约 `0.0836ms`，最小 `0.056ms`，最大 `0.9153ms`。Gateway 报告中也能看到由 OpenVINO 触发的决策：
+
+```text
+0.75s -> hold   | OpenVINO EOU policy selected hold
+1.82s -> commit | OpenVINO EOU policy selected commit after 770ms
+```
+
+这仍然不是最终的语音大模型加速，但已经把 OpenVINO 放进了实际执行链路。后续如果导出 VAD、ASR 或 TTS 的 IR 模型，可以沿用 `scripts/export_openvino.py` 和 `adapters/openvino_placeholder.py` 继续做模型级 benchmark。
 
 最终比较理想的 AI PC 链路是：
 
@@ -301,9 +301,9 @@ Gateway 就能输出稳定的 Agent 事件。Agent 不需要知道底层用的�
 
 第二步是接入 turn detection 模型。规则可以处理一些明显场景，但真实对话里有大量语气、犹豫、短语和上下文信号。`TEN_Turn_Detection` 这类模型适合放进 `should_commit / should_hold / should_interrupt` 这层，和规则一起做判断。
 
-第三步是接入本地 TTS 和 Agent 模板。TTS adapter 接收 `tts_started / tts_finished / interrupt_tts`，Agent adapter 则把 `commit_turn` 交给 QwenPaw、Trae 或 Ollama 中的 35B 以下模型。到这一步，它就不只是一个控制层 demo，而是一个真正可用的本地语音 Agent Gateway。
+第三步是接入本地 TTS 和 Agent 模板。TTS adapter 接收 `tts_started / tts_finished / interrupt_tts`，Agent adapter 则把 `commit_turn` 交给 QwenPaw、Trae 或 Ollama 中的 35B 以下模型。到这一步，它就不再只是控制层 demo，而是一个可用的本地语音 Agent Gateway。
 
-最终形态我希望是：
+最终形态是：
 
 ```text
 用户自然语音

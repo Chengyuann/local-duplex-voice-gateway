@@ -17,6 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 
 DEFAULT_EOU_SILENCE_MS = 700
 SHORT_PAUSE_MS = 280
@@ -55,6 +59,7 @@ class GatewayState:
     tts_active: bool = False
     tts_text: str = ""
     interrupts: int = 0
+    eou_policy: Any = None
 
 
 def load_events(path: Path) -> list[InputEvent]:
@@ -77,8 +82,8 @@ def load_events(path: Path) -> list[InputEvent]:
     return sorted(events, key=lambda item: item.t)
 
 
-def process_events(events: list[InputEvent], eou_silence_ms: int = DEFAULT_EOU_SILENCE_MS) -> GatewayState:
-    state = GatewayState()
+def process_events(events: list[InputEvent], eou_silence_ms: int = DEFAULT_EOU_SILENCE_MS, eou_policy: Any = None) -> GatewayState:
+    state = GatewayState(eou_policy=eou_policy)
     for event in events:
         state.latest_event_t = event.t
 
@@ -158,6 +163,16 @@ def handle_silence(event: InputEvent, state: GatewayState, eou_silence_ms: int) 
         emit(state, event.t, "listen", "very short pause", state.latest_text, silence_ms)
         return
 
+    model_decision = decide_with_eou_policy(state, silence_ms)
+    if model_decision:
+        decision, latency_ms = model_decision
+        if decision == "hold":
+            emit(state, event.t, "hold", "OpenVINO EOU policy selected hold", state.latest_text, latency_ms)
+            return
+        if decision == "commit":
+            commit_turn(state, event.t, f"OpenVINO EOU policy selected commit after {silence_ms}ms")
+            return
+
     if should_hold(state.latest_text, silence_ms, eou_silence_ms):
         emit(state, event.t, "hold", "pause looks like continuation, not end of turn", state.latest_text, silence_ms)
         return
@@ -172,6 +187,24 @@ def should_interrupt(text: str) -> bool:
     if INTERRUPT_HINTS.search(text):
         return True
     return len(text) >= 4 and not CONTINUE_HINTS.search(text)
+
+
+def decide_with_eou_policy(state: GatewayState, silence_ms: int) -> Optional[tuple[str, int]]:
+    if state.eou_policy is None or not state.latest_text:
+        return None
+    try:
+        from adapters.openvino_eou import EOUFeatures
+    except Exception:
+        return None
+    text = state.latest_text
+    features = EOUFeatures(
+        silence_ms=float(silence_ms),
+        text_chars=float(len(strip_punctuation(text))),
+        has_continue_hint=1.0 if CONTINUE_HINTS.search(text) else 0.0,
+        has_commit_hint=1.0 if COMMIT_HINTS.search(text) or re.search(r"[。！？!?]$", text) else 0.0,
+    )
+    decision = state.eou_policy.decide(features)
+    return decision.action, int(decision.latency_ms)
 
 
 def should_commit(text: str) -> bool:
@@ -291,12 +324,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--format", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--output", "-o")
     parser.add_argument("--eou-silence-ms", type=int, default=DEFAULT_EOU_SILENCE_MS)
+    parser.add_argument("--openvino-eou-model", type=Path, help="Optional OpenVINO EOU policy IR model path.")
+    parser.add_argument("--openvino-device", default="CPU")
     args = parser.parse_args(argv)
 
     try:
         source = Path(args.input).expanduser()
         events = load_events(source)
-        state = process_events(events, args.eou_silence_ms)
+        eou_policy = None
+        if args.openvino_eou_model:
+            from adapters.openvino_eou import OpenVINOEOUPolicy
+
+            eou_policy = OpenVINOEOUPolicy(args.openvino_eou_model, args.openvino_device)
+        state = process_events(events, args.eou_silence_ms, eou_policy=eou_policy)
         output = Path(args.output).expanduser() if args.output else None
         report_path = write_json_report(state, output) if args.format == "json" else write_markdown_report(state, source, output)
         print_summary(state, report_path)

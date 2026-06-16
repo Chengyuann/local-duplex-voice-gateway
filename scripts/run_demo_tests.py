@@ -40,6 +40,17 @@ def main() -> int:
         assert state4.committed_turns, "ASR event file should commit at least one turn"
         assert "付款周期" in state4.committed_turns[-1], state4.committed_turns
         print("PASS from_audio_events: real ASR text committed")
+
+    try:
+        from adapters.openvino_eou import OpenVINOEOUPolicy
+
+        policy = OpenVINOEOUPolicy(root / "models" / "openvino" / "eou_policy.xml")
+        state5 = process_events(load_events(root / "demo" / "short_pause_continuation.jsonl"), eou_policy=policy)
+        assert state5.committed_turns[-1].endswith("然后生成一个待办"), state5.committed_turns
+        assert any("OpenVINO EOU policy" in event.reason for event in state5.output_events), [event.reason for event in state5.output_events]
+        print("PASS openvino_eou_policy: OpenVINO model used in gateway")
+    except ImportError:
+        print("SKIP openvino_eou_policy: openvino not installed")
     return 0
 
 

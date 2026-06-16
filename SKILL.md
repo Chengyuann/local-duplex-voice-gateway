@@ -103,6 +103,8 @@ python client/gateway_client.py /path/to/demo.wav --server http://127.0.0.1:8765
 OpenVINO 检查：
 
 ```bash
+python adapters/openvino_eou.py --model-xml models/openvino/eou_policy.xml --iterations 50
+python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl --openvino-eou-model models/openvino/eou_policy.xml
 python adapters/openvino_placeholder.py --output reports/openvino_check.json
 python scripts/export_openvino.py --model iic/SenseVoiceSmall --task automatic-speech-recognition --dry-run
 ```
