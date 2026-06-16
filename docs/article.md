@@ -26,7 +26,7 @@
 
 第三个是修正。用户经常边说边调整目标：“帮我写个总结，等一下，不要太正式，像日报一点。”如果语音系统只提交第一段，它会做错方向。Local Duplex Voice Gateway 要做的是把这种修正变成清晰的 `interrupt_tts` 或新的 `commit_turn`。
 
-第四个是 Agent 工具调用。语音只是入口，真正的任务可能是查日历、改代码、总结文档、控制桌面应用。Agent 需要拿到稳定、完整的用户意图，才知道下一步调用哪个工具。
+第四个是 Agent 工具调用。语音只是入口，后面的任务可能是查日历、改代码、总结文档、控制桌面应用。Agent 需要拿到稳定、完整的用户意图，才知道下一步调用哪个工具。
 
 ## 产品形态
 
@@ -77,15 +77,15 @@ Local Duplex Voice Gateway 的工作流是这样的：
 
 这样的设计有一个好处：ASR、VAD、TTS、EOU 模型都可以替换，但 Agent 看到的协议不变。今天可以用 demo JSONL 验证逻辑，明天可以接 ModelScope 上的 SenseVoiceSmall、FSMN-VAD、CosyVoice2 或 TEN Turn Detection。Skill 的价值在于把这些模型组织成稳定的语音工作流，而不是把仓库绑死在某一个大模型上。
 
-为了让这个协议更清楚，我在代码里没有直接写“语音助手回复什么”，而是只输出动作。比如 `hold` 不代表系统要沉默很久，它只是告诉 Agent：现在不要急着执行；`interrupt_tts` 也不只是在停止播放，它还意味着上一轮回复已经被用户否定或修正，需要重新组织上下文。
+为了让这个协议更清楚，我在代码里没有直接写“语音助手回复什么”，而是只输出动作。比如 `hold` 不代表系统要沉默很久，它只是告诉 Agent：现在不要急着执行；`interrupt_tts` 不只是停止播放，它还意味着上一轮回复已经被用户否定或修正，需要重新组织上下文。
 
 ## 为什么适合 35B 以下本地模型
 
 这个 Skill 不要求 35B 以下模型直接处理原始音频流。它让本地模型处理更清晰的任务：读取 `commit_turn` 之后的完整意图，决定下一步调用什么工具，或者生成下一句回复。
 
-这样分工更合理。VAD、EOU、打断检测这些高频判断由轻量层处理，Agent 大脑不用被 ASR partial 不断打扰；等 Gateway 判断“这一轮可以提交”之后，本地模型再做规划。对 Qwen3.6-35B-A3B、openBMB4.5 或其他 35B 以下模型来说，这种输入更稳定，也更适合做工具调用。
+这样分工更合理。VAD、EOU、打断检测这些高频判断由轻量层处理，Agent 大脑不用被 ASR partial 不断打扰；等 Gateway 判断“这一轮可以提交”之后，本地模型再做规划。对 Qwen3-30B-A3B、MiniCPM-o 4.5 或其他 35B 以下模型来说，这种输入更稳定，也更适合做工具调用。
 
-在 QwenPaw、Trae、Ollama 这类本地 Agent 环境里，它可以被包装成一个本地工具。用户说话，ASR adapter 输出分片，Gateway 产生事件，本地模型只消费最终 turn。在这个结构里，模型不是孤立聊天，而是根据事件状态调用本地工具。
+在 Trae、Ollama 或其他支持工具调用的本地 Agent 环境里，它可以被包装成一个本地工具。用户说话，ASR adapter 输出分片，Gateway 产生事件，本地模型只消费最终 turn。在这个结构里，模型不是孤立聊天，而是根据事件状态调用本地工具。
 
 ## 按 ModelScope 模型库接入
 
@@ -121,7 +121,7 @@ for decision in gateway.events():
 
 这里的 `local_asr_stream` 可以来自 SenseVoiceSmall，也可以来自 Paraformer 或其他本地 ASR。Gateway 不关心模型名字，只关心事件格式。
 
-端到端模型也值得参考。Qwen2.5-Omni-7B 是 7B 级多模态模型，支持音频理解和自然语音输出；MiniCPM-o 2.6 是约 8B 的端侧多模态模型，强调实时语音对话；MiniCPM-o 4.5 约 9B，模型卡强调 full-duplex multimodal live streaming；Moshi 也提供了 full-duplex spoken dialogue framework 的产品形态参考。这些模型说明全双工语音正在变成一个明确方向，但在本项目里，我更希望保留 Gateway 协议，让不同模型可以按需替换。
+端到端模型也值得参考，比如 Qwen2.5-Omni-7B、MiniCPM-o 系列和 Moshi 这类实时语音/多模态模型。不过本项目不绑定某一个端到端模型。它保留的是 Gateway 事件协议，让 ASR、TTS、EOU 或端到端语音模型都可以按需替换。
 
 收到预审核建议后，我把这部分从“规划”往“可接入代码”推进了一步。仓库现在新增了 `adapters/modelscope_speech.py`，它是一个可运行的 ModelScope/FunASR adapter：输入本地 wav，调用 FSMN-VAD 和 SenseVoiceSmall，输出 Gateway 能消费的 JSONL 事件。也就是说，当前仓库不再只有手写 JSONL demo，而是有了一条真实音频进入 Gateway 的代码路径。
 
@@ -138,7 +138,7 @@ python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
 
 我也补了 `scripts/prepare_models.py`，用于按 ModelScope 模型 ID 下载 VAD、ASR、TTS 和 turn detection 相关模型。评审者如果暂时不想下载模型，可以先运行 `--dry-run` 查看模型清单；如果本地环境已经准备好，就可以直接跑真实 wav 链路。
 
-目前我已经在本机跑通了轻量的真实 VAD 链路。用 macOS `say` 生成一段本地语音，再用 ffmpeg 转成 16k mono wav，随后调用 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。第一次未缓存运行会从 ModelScope 下载 VAD 模型，模型加载约 2.19 秒，单次推理约 28.1ms，输出语音片段 `[[0, 4460]]`。缓存后通过 adapter 跑同一条链路，VAD 耗时约 1.42 秒。这个结果至少证明当前仓库已经能接入真实 ModelScope 本地语音模型，而不再停在 JSONL 状态机。
+目前我已经在本机跑通了轻量的真实 VAD 链路。用 macOS `say` 生成一段本地语音，再用 ffmpeg 转成 16k mono wav，随后调用 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。第一次未缓存运行会从 ModelScope 下载 VAD 模型，模型加载约 2.19 秒，单次推理约 28.1ms，输出语音片段 `[[0, 4460]]`。缓存后通过 adapter 跑同一条链路，VAD 耗时约 1.75 秒。这个结果至少证明当前仓库已经能接入真实 ModelScope 本地语音模型，而不再停在 JSONL 状态机。
 
 VAD-only 链路没有 ASR 文本，所以 Gateway 不会生成 `commit_turn`；它的作用是把真实音频变成 speech/silence 时间事件。去掉 `--vad-only` 后，adapter 会继续调用 SenseVoiceSmall 生成文本，再把文本和 VAD 时间一起交给 Gateway。
 
@@ -159,13 +159,11 @@ python client/gateway_client.py /path/to/demo.wav --server http://127.0.0.1:8765
 
 OpenVINO 这次不再停留在文档规划里。我补了一个轻量 EOU policy 模型，用 OpenVINO Runtime 在 Gateway 热路径中判断 `hold` 和 `commit`。
 
-VAD、ASR 和 EOU 都适合做端侧加速，其中 EOU 最容易先落地。它的输入不是原始音频，而是几个本地特征：静音时长、文本长度、是否有继续说的提示、是否有结束提示。`adapters/openvino_eou.py` 会构建一个很小的 OpenVINO IR 模型，输出 hold / commit 分数。这个模型不大，但它证明 Gateway 可以在话轮判断中真实调用 OpenVINO Runtime。
+VAD、ASR 和 EOU 都适合做端侧加速，其中 EOU 最容易先落地。它的输入不是原始音频，而是几个本地特征：静音时长、文本长度、是否有继续说的提示、是否有结束提示。`adapters/openvino_eou.py` 会构建一个很小的 OpenVINO IR 模型，输出 hold / commit 分数。这个模型很小，但 Gateway 会在话轮判断时实际调用 OpenVINO Runtime。
 
-TTS 也是第二个适合优化的位置。语音 Agent 不只是要听得快，也要回得快。OpenVINO GenAI 已经有 Text2SpeechPipeline 和 speech generation 方向的示例，说明本地语音生成链路可以纳入 OpenVINO 生态。等接入真实 TTS adapter 后，`interrupt_tts` 也可以从 demo 事件变成真实播放控制。
+TTS 也是第二个适合优化的位置。语音 Agent 要听得快，也要回得快。OpenVINO GenAI 已经有 Text2SpeechPipeline 和 speech generation 方向的示例，说明本地语音生成链路可以纳入 OpenVINO 生态。等接入真实 TTS adapter 后，`interrupt_tts` 也可以从 demo 事件变成真实播放控制。
 
 实测命令如下：
-
-现在可以这样检查：
 
 ```bash
 python adapters/openvino_eou.py \
@@ -179,7 +177,7 @@ python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
   --output docs/evidence/openvino_gateway_report.md
 ```
 
-本机 CPU 上 50 次推理平均耗时约 `0.0836ms`，最小 `0.056ms`，最大 `0.9153ms`。Gateway 报告中也能看到由 OpenVINO 触发的决策：
+本机 CPU 上 50 次推理平均耗时约 `0.0571ms`，最小 `0.0398ms`，最大 `0.6023ms`。Gateway 报告中也能看到由 OpenVINO 触发的决策：
 
 ```text
 0.75s -> hold   | OpenVINO EOU policy selected hold
@@ -301,25 +299,9 @@ Gateway 就能输出稳定的 Agent 事件。Agent 不需要知道底层用的�
 
 第二步是接入 turn detection 模型。规则可以处理一些明显场景，但真实对话里有大量语气、犹豫、短语和上下文信号。`TEN_Turn_Detection` 这类模型适合放进 `should_commit / should_hold / should_interrupt` 这层，和规则一起做判断。
 
-第三步是接入本地 TTS 和 Agent 模板。TTS adapter 接收 `tts_started / tts_finished / interrupt_tts`，Agent adapter 则把 `commit_turn` 交给 QwenPaw、Trae 或 Ollama 中的 35B 以下模型。到这一步，它就不再只是控制层 demo，而是一个可用的本地语音 Agent Gateway。
+第三步是接入本地 TTS 和 Agent 模板。TTS adapter 接收 `tts_started / tts_finished / interrupt_tts`，Agent adapter 则把 `commit_turn` 交给 Trae、Ollama 或其他本地 Agent 客户端中的 35B 以下模型。到这一步，它就不再只是控制层 demo，而是一个可用的本地语音 Agent Gateway。
 
-最终形态是：
-
-```text
-用户自然语音
-    -> ModelScope / OpenVINO 本地语音模型
-    -> Duplex Voice Gateway
-    -> 本地 Agent 大脑
-    -> 工具调用
-    -> 本地 TTS
-    -> 用户随时打断、修正、继续
-```
-
-更具体一点，后续版本我会把产品拆成四个模式。
-
-会议模式里，Gateway 会更保守地处理停顿，因为会议发言经常有思考停顿，不能太快打断；AI coding 模式里，打断优先级更高，因为用户修正需求通常意味着前一轮执行方向要变；陪伴模式里，系统应该少抢话，多给用户留停顿空间；无障碍模式则更强调稳定确认，避免误触发关键操作。
-
-这些模式不需要重写整个系统，只需要调整 Gateway 的策略参数和 Agent 提示。比如 `eou_silence_ms`、继续提示词、打断词、最短提交长度，都可以按场景配置。对于 AI PC 来说，这种个人化配置很有价值：同一个语音 Gateway，可以变成开发者的语音工作台，也可以变成普通用户的桌面语音助手。
+后续版本会把同一套事件协议拆成不同场景配置。会议模式可以把停顿阈值调得更保守，避免误切发言；AI coding 模式可以提高打断优先级，让用户随时补充“不要改接口”“先只改测试”这类约束；无障碍模式则更强调确认和回滚，避免误触发关键操作。这里不需要重写系统，主要调整 `eou_silence_ms`、继续提示词、打断词和最短提交长度。
 
 ## 小结
 

@@ -3,7 +3,7 @@
 ## Summary
 
 - Source: `demo/short_pause_continuation.jsonl`
-- Generated at: 2026-06-16T18:52:00
+- Generated at: 2026-06-16T18:57:33
 - Committed turns: 1
 - TTS interruptions: 0
 

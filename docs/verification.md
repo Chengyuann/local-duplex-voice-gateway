@@ -81,14 +81,14 @@ Observed result:
 {
   "device": "CPU",
   "iterations": 50,
-  "avg_latency_ms": 0.0707,
-  "min_latency_ms": 0.0399,
-  "max_latency_ms": 1.0453,
+  "avg_latency_ms": 0.0571,
+  "min_latency_ms": 0.0398,
+  "max_latency_ms": 0.6023,
   "last_decision": {
     "action": "commit",
     "hold_score": -1.7627,
     "commit_score": 2.4102,
-    "latency_ms": 0.071
+    "latency_ms": 0.0402
   }
 }
 ```

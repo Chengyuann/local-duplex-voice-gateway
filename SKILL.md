@@ -46,7 +46,7 @@ Local Duplex Voice Gateway 把语音 Agent 中最容易失控的部分拆出来�
 - VAD：ModelScope `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。
 - EOU：轻量 turn detection 模型，或 35B 以下本地模型辅助判断。
 - TTS：ModelScope `iic/CosyVoice2-0.5B` 或其他本地 TTS。
-- Agent 大脑：Ollama + Qwen3.6-35B-A3B / openBMB4.5 系列 / 其他 35B 以下模型。
+- Agent 大脑：Ollama + Qwen3-30B-A3B / MiniCPM-o 4.5 系列 / 其他 35B 以下模型。
 
 ModelScope 语音模型接入建议见 `references/modelscope-voice-stack.md`。
 
