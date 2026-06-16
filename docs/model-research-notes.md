@@ -9,7 +9,7 @@
 - Kyutai Moshi：约 7B 级别的实时语音对话模型，公开材料强调 full-duplex / streaming conversation，是全双工语音产品形态的重要参考。
 - Whisper / SenseVoice / Paraformer：可作为本地 ASR 层。
 - Piper / F5-TTS / ChatTTS / CosyVoice：可作为本地 TTS 层。
-- Qwen3.6-35B-A3B / openBMB4.5：符合活动推荐的 35B 以下 Agent 大脑方向。
+- Qwen3-30B-A3B / MiniCPM-o 4.5：符合活动推荐的 35B 以下 Agent 大脑方向。
 
 OpenVINO 位置：
 
