@@ -3,5 +3,13 @@ __pycache__/
 duplex_voice_report_*.md
 duplex_voice_report_*.json
 .DS_Store
+.venv/
+demo_audio/
 *_report.md
 *_report.json
+models/
+!models/
+models/*
+!models/model_config.example.json
+reports/*
+!reports/.gitkeep

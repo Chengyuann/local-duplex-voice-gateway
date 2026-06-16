@@ -83,6 +83,30 @@ python scripts/duplex_voice_gateway.py demo/duplex_conversation.jsonl --format j
 python scripts/run_demo_tests.py
 ```
 
+真实 wav 链路：
+
+```bash
+pip install -r requirements.txt
+python scripts/prepare_models.py
+python adapters/modelscope_speech.py /path/to/demo.wav --vad-only --output demo/from_vad_events.jsonl
+python adapters/modelscope_speech.py /path/to/demo.wav --output demo/from_audio_events.jsonl
+python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
+```
+
+常驻服务：
+
+```bash
+python server/speech_server.py --host 127.0.0.1 --port 8765
+python client/gateway_client.py /path/to/demo.wav --server http://127.0.0.1:8765
+```
+
+OpenVINO 检查：
+
+```bash
+python adapters/openvino_placeholder.py --output reports/openvino_check.json
+python scripts/export_openvino.py --model iic/SenseVoiceSmall --task automatic-speech-recognition --dry-run
+```
+
 ## Agent 输出建议
 
 Agent 读取报告后不要只说“用户说完了”。更好的输出是：

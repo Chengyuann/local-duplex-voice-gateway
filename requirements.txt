@@ -1,0 +1,12 @@
+# Core demo has no third-party dependency. Install this file for real local speech adapters.
+funasr>=1.2.6
+modelscope>=1.17.0
+soundfile>=0.12.1
+numpy>=1.23.0
+requests>=2.31.0
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# Optional OpenVINO acceleration / export path. Install on Intel AI PC when needed.
+openvino>=2025.0.0
+optimum-intel[openvino]>=1.18.0

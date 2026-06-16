@@ -25,6 +25,93 @@ python scripts/run_demo_tests.py
 
 基础 demo 只需要 Python 3.8+ 标准库。
 
+## 真实本地语音链路
+
+安装真实语音适配器依赖：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+准备 ModelScope 模型：
+
+```bash
+python scripts/prepare_models.py --dry-run
+python scripts/prepare_models.py
+```
+
+把本地 wav 转成 Gateway 事件，再交给网关处理：
+
+```bash
+# 先跑轻量 VAD 真实链路
+python adapters/modelscope_speech.py /path/to/demo.wav \
+  --vad-only \
+  --output demo/from_vad_events.jsonl \
+  --summary reports/modelscope_vad_summary.json
+
+# 再跑 VAD + ASR 链路
+python adapters/modelscope_speech.py /path/to/demo.wav \
+  --output demo/from_audio_events.jsonl \
+  --summary reports/modelscope_adapter_summary.json
+
+python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl \
+  --output reports/from_audio_gateway_report.md
+```
+
+## 常驻 server/client 架构
+
+为避免每轮重载 ASR/VAD 模型，可以启动 localhost 常驻服务：
+
+```bash
+python server/speech_server.py --host 127.0.0.1 --port 8765
+```
+
+另一个终端调用：
+
+```bash
+python client/gateway_client.py /path/to/demo.wav \
+  --server http://127.0.0.1:8765 \
+  --vad-only \
+  --gateway-output reports/client_gateway_report.md
+```
+
+服务接口：
+
+- `GET /health`
+- `POST /v1/transcribe {"audio_path":"/path/to.wav"}`
+
+## OpenVINO 检查与导出
+
+检查 OpenVINO runtime：
+
+```bash
+python adapters/openvino_placeholder.py --output reports/openvino_check.json
+```
+
+Optimum Intel 导出命令模板：
+
+```bash
+python scripts/export_openvino.py \
+  --model iic/SenseVoiceSmall \
+  --task automatic-speech-recognition \
+  --output models/openvino/sensevoice \
+  --dry-run
+```
+
+如果模型已导出为 IR，可做本地 benchmark：
+
+```bash
+python adapters/openvino_placeholder.py \
+  --model-xml models/openvino/sensevoice/openvino_model.xml \
+  --device CPU \
+  --iterations 10 \
+  --output reports/openvino_benchmark.json
+```
+
+当前仓库验证摘要见 `docs/verification.md`。
+
 ## 输入格式
 
 demo 使用 JSONL 模拟流式 ASR/VAD/TTS 事件：

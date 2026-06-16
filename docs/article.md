@@ -123,6 +123,36 @@ for decision in gateway.events():
 
 端到端模型也值得参考。Qwen2.5-Omni-7B 是 7B 级多模态模型，支持音频理解和自然语音输出；MiniCPM-o 2.6 是约 8B 的端侧多模态模型，强调实时语音对话；MiniCPM-o 4.5 约 9B，模型卡强调 full-duplex multimodal live streaming；Moshi 也提供了 full-duplex spoken dialogue framework 的产品形态参考。这些模型说明全双工语音正在变成一个明确方向，但在本项目里，我更希望保留 Gateway 协议，让不同模型可以按需替换。
 
+收到预审核建议后，我把这部分从“规划”往“可接入代码”推进了一步。仓库现在新增了 `adapters/modelscope_speech.py`，它不是伪代码，而是一个可运行的 ModelScope/FunASR adapter：输入本地 wav，调用 FSMN-VAD 和 SenseVoiceSmall，输出 Gateway 能消费的 JSONL 事件。也就是说，当前仓库不再只有手写 JSONL demo，而是有了一条真实音频进入 Gateway 的代码路径。
+
+对应命令如下：
+
+```bash
+pip install -r requirements.txt
+python scripts/prepare_models.py
+python adapters/modelscope_speech.py /path/to/demo.wav \
+  --output demo/from_audio_events.jsonl \
+  --summary reports/modelscope_adapter_summary.json
+python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
+```
+
+我也补了 `scripts/prepare_models.py`，用于按 ModelScope 模型 ID 下载 VAD、ASR、TTS 和 turn detection 相关模型。评审者如果暂时不想下载模型，可以先运行 `--dry-run` 查看模型清单；如果本地环境已经准备好，就可以直接跑真实 wav 链路。
+
+目前我已经在本机跑通了轻量的真实 VAD 链路。用 macOS `say` 生成一段本地语音，再用 ffmpeg 转成 16k mono wav，随后调用 `iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`。第一次未缓存运行会从 ModelScope 下载 VAD 模型，模型加载约 2.19 秒，单次推理约 28.1ms，输出语音片段 `[[0, 4460]]`。缓存后通过 adapter 跑同一条链路，VAD 耗时约 1.42 秒。这个结果至少证明当前仓库已经能接入真实 ModelScope 本地语音模型，而不是只停留在 JSONL 状态机。
+
+VAD-only 链路没有 ASR 文本，所以 Gateway 不会生成 `commit_turn`；它的作用是把真实音频变成 speech/silence 时间事件。去掉 `--vad-only` 后，adapter 会继续调用 SenseVoiceSmall 生成文本，再把文本和 VAD 时间一起交给 Gateway。
+
+为了避免每一轮都重新加载模型，仓库里还增加了常驻服务：
+
+```bash
+python server/speech_server.py --host 127.0.0.1 --port 8765
+python client/gateway_client.py /path/to/demo.wav --server http://127.0.0.1:8765
+```
+
+这个 server/client 结构更接近真实 Agent 工具形态。语音模型常驻在 localhost 服务里，Gateway client 只传音频路径并取回事件文件，后续再做 turn-taking 判断。这样不会每次用户说一句话就重新加载 ASR/VAD 模型。
+
+我也实际跑了一次 server/client smoke。服务启动后，`GET /health` 返回 `ok: true`；client 传入 `demo/audio/voice_demo.wav` 并开启 `--vad-only`，服务端返回 `vad_segments: [[0, 4460]]`，VAD 耗时约 1.25 秒，并生成 `reports/server_events/server_vad_events.jsonl`。这说明常驻服务路径不是只写在文档里，已经能在本地用 ModelScope VAD 模型跑通。
+
 ## OpenVINO 放在哪
 
 OpenVINO 不应该只是文章里的一个关键词。它在这个项目里有明确位置。
@@ -130,6 +160,31 @@ OpenVINO 不应该只是文章里的一个关键词。它在这个项目里有�
 VAD 和 ASR 是第一批适合加速的模块。语音交互对延迟很敏感，尤其是端点判断。如果用户说完后系统还要等一两秒才反应，体验会很差。通过 OpenVINO 优化 VAD、ASR 或 EOU 小模型，可以把这部分延迟压低。
 
 TTS 也是第二个适合优化的位置。语音 Agent 不只是要听得快，也要回得快。OpenVINO GenAI 已经有 Text2SpeechPipeline 和 speech generation 方向的示例，说明本地语音生成链路可以纳入 OpenVINO 生态。等接入真实 TTS adapter 后，`interrupt_tts` 也可以从 demo 事件变成真实播放控制。
+
+这次返修里，我补了两个和 OpenVINO 相关的实际脚本。`adapters/openvino_placeholder.py` 会检查本机 OpenVINO runtime 是否可用，并在给定 IR 模型时做简单 latency benchmark；`scripts/export_openvino.py` 则记录 Optimum Intel 导出命令，方便把兼容模型导出到 OpenVINO IR。不同语音模型的导出兼容性不完全一样，所以我没有在仓库里伪造“已经全部 OpenVINO 加速”的结果，而是把检查、导出和 benchmark 路径补齐。
+
+现在可以这样检查：
+
+```bash
+python adapters/openvino_placeholder.py --output reports/openvino_check.json
+python scripts/export_openvino.py \
+  --model iic/SenseVoiceSmall \
+  --task automatic-speech-recognition \
+  --output models/openvino/sensevoice \
+  --dry-run
+```
+
+如果已经有导出的 IR 模型，可以继续跑：
+
+```bash
+python adapters/openvino_placeholder.py \
+  --model-xml models/openvino/sensevoice/openvino_model.xml \
+  --device CPU \
+  --iterations 10 \
+  --output reports/openvino_benchmark.json
+```
+
+我本机这次没有安装 OpenVINO runtime，所以检查结果会记录 `openvino is not installed`。这不是为了回避实现，而是把环境差异显式写入报告。等在 Intel AI PC 或评审环境安装 OpenVINO 后，这个脚本就能输出可对比的设备列表和延迟数据。
 
 最终比较理想的 AI PC 链路是：
 
@@ -207,6 +262,17 @@ PASS short_pause_continuation: hold before commit
 ```
 
 这两个测试虽然小，但覆盖了语音 Agent 最容易影响体验的两件事：可打断，以及短暂停顿时继续等待。
+
+此外，当前仓库还可以验证真实链路入口是否就绪：
+
+```bash
+python scripts/prepare_models.py --dry-run
+python scripts/export_openvino.py --model iic/SenseVoiceSmall --task automatic-speech-recognition --dry-run
+python adapters/openvino_placeholder.py --output reports/openvino_check.json
+python -m py_compile scripts/duplex_voice_gateway.py adapters/modelscope_speech.py server/speech_server.py client/gateway_client.py
+```
+
+这些命令不下载大模型，也不会要求评审者已有麦克风输入，但可以确认 requirements、模型准备、OpenVINO 检查、server/client 和 Gateway 代码路径都存在并能被 Python 解析。
 
 我没有在当前版本里把 demo 做得很复杂，是有意的。语音系统一旦接上真实麦克风、真实 ASR 和真实 TTS，问题会变多：噪声、重叠语音、识别延迟、用户口头禅、模型首包时间都会影响结果。所以我先把最小状态机做清楚，保证在可控输入下动作正确。后续接模型时，问题会集中在 adapter 和阈值调优，不会把 Agent 事件协议也一起搅乱。
 

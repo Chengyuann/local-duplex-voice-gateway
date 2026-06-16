@@ -24,6 +24,13 @@ def main() -> int:
     assert "hold" in actions2, actions2
     assert state2.committed_turns[-1].endswith("然后生成一个待办"), state2.committed_turns
     print("PASS short_pause_continuation: hold before commit")
+
+    vad_events = root / "demo" / "from_vad_events.jsonl"
+    if vad_events.exists():
+        state3 = process_events(load_events(vad_events))
+        assert state3.output_events, "VAD event file should produce gateway events"
+        assert state3.output_events[-1].action in {"listen", "hold"}, [event.action for event in state3.output_events]
+        print("PASS from_vad_events: real VAD event file parsed")
     return 0
 
 
