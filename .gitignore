@@ -7,6 +7,8 @@ duplex_voice_report_*.json
 demo_audio/
 *_report.md
 *_report.json
+!docs/evidence/*_report.md
+!docs/evidence/*_report.json
 models/
 !models/
 models/*
