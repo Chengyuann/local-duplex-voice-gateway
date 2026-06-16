@@ -29,8 +29,17 @@ def main() -> int:
     if vad_events.exists():
         state3 = process_events(load_events(vad_events))
         assert state3.output_events, "VAD event file should produce gateway events"
-        assert state3.output_events[-1].action in {"listen", "hold"}, [event.action for event in state3.output_events]
+        actions3 = [event.action for event in state3.output_events]
+        assert "ignore" not in actions3, actions3
+        assert state3.output_events[-1].action in {"listen", "hold"}, actions3
         print("PASS from_vad_events: real VAD event file parsed")
+
+    asr_events = root / "demo" / "from_audio_events.jsonl"
+    if asr_events.exists():
+        state4 = process_events(load_events(asr_events))
+        assert state4.committed_turns, "ASR event file should commit at least one turn"
+        assert "付款周期" in state4.committed_turns[-1], state4.committed_turns
+        print("PASS from_audio_events: real ASR text committed")
     return 0
 
 

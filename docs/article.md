@@ -142,6 +142,8 @@ python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
 
 VAD-only 链路没有 ASR 文本，所以 Gateway 不会生成 `commit_turn`；它的作用是把真实音频变成 speech/silence 时间事件。去掉 `--vad-only` 后，adapter 会继续调用 SenseVoiceSmall 生成文本，再把文本和 VAD 时间一起交给 Gateway。
 
+随后我继续跑了完整的 VAD + ASR 链路。SenseVoiceSmall 成功把本地 wav 转写为“帮我总结这份合同，等一下，先重点看付款周期。”，adapter 生成 `demo/from_audio_events.jsonl`，Gateway 最终输出 1 个 `commit_turn`。本机 CPU 环境下，缓存后这次 ASR 路径耗时约 3.99 秒，VAD 约 1.22 秒。这个数字并不好看，但它是一个真实起点：代码已经把本地 wav、ModelScope 语音模型和 Gateway 串起来了，后续 OpenVINO 或更轻量模型优化才有明确对象。
+
 为了避免每一轮都重新加载模型，仓库里还增加了常驻服务：
 
 ```bash

@@ -86,6 +86,10 @@ def process_events(events: list[InputEvent], eou_silence_ms: int = DEFAULT_EOU_S
             handle_asr(event, state)
             continue
 
+        if event.type == "vad_start":
+            handle_vad_start(event, state)
+            continue
+
         if event.type == "silence":
             handle_silence(event, state, eou_silence_ms)
             continue
@@ -131,12 +135,24 @@ def handle_asr(event: InputEvent, state: GatewayState) -> None:
         emit(state, event.t, "listen", "user is speaking", text)
 
 
+def handle_vad_start(event: InputEvent, state: GatewayState) -> None:
+    state.latest_speech_t = event.t
+    if event.text:
+        state.latest_text = normalize_text(event.text)
+    emit(state, event.t, "listen", "VAD detected speech start", state.latest_text)
+
+
 def handle_silence(event: InputEvent, state: GatewayState, eou_silence_ms: int) -> None:
-    if not state.latest_text or state.latest_speech_t is None:
+    if state.latest_speech_t is None:
         emit(state, event.t, "listen", "silence without active utterance")
         return
 
     silence_ms = int(max(0.0, event.t - state.latest_speech_t) * 1000)
+
+    if not state.latest_text:
+        emit(state, event.t, "hold", "VAD speech ended but no ASR text is available", "", silence_ms)
+        state.latest_speech_t = None
+        return
 
     if silence_ms < SHORT_PAUSE_MS:
         emit(state, event.t, "listen", "very short pause", state.latest_text, silence_ms)

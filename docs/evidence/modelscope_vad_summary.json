@@ -1,0 +1,15 @@
+{
+  "audio_path": "demo/audio/voice_demo.wav",
+  "asr_text": "",
+  "events_path": "demo/from_vad_events.jsonl",
+  "vad_segments": [[0, 4460]],
+  "timings_ms": {
+    "vad": 1752.8,
+    "asr": 0.0
+  },
+  "config": {
+    "vad_model": "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    "vad_revision": "v2.0.4",
+    "vad_only": true
+  }
+}

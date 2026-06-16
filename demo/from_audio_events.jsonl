@@ -1,0 +1,3 @@
+{"t": 0.0, "type": "vad_start", "text": "", "speech": true}
+{"t": 0.05, "type": "asr_partial", "text": "帮我总结这份合同，等一下，先重点看付款周期。", "speech": true}
+{"t": 4.46, "type": "silence", "text": "", "speech": false}

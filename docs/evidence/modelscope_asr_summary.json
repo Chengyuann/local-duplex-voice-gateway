@@ -1,0 +1,22 @@
+{
+  "audio_path": "demo/audio/voice_demo.wav",
+  "asr_text": "帮我总结这份合同，等一下，先重点看付款周期。",
+  "events_path": "demo/from_audio_events.jsonl",
+  "vad_segments": [[0, 4460]],
+  "timings_ms": {
+    "vad": 1217.79,
+    "asr": 3994.89
+  },
+  "config": {
+    "vad_model": "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    "vad_revision": "v2.0.4",
+    "asr_model": "iic/SenseVoiceSmall",
+    "asr_revision": "master",
+    "asr_device": "cpu",
+    "language": "auto",
+    "use_itn": true,
+    "merge_vad": true,
+    "merge_length_s": 15,
+    "max_single_segment_time": 30000
+  }
+}

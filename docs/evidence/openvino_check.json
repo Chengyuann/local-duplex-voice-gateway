@@ -1,0 +1,6 @@
+{
+  "runtime": {
+    "available": false,
+    "error": "openvino is not installed"
+  }
+}

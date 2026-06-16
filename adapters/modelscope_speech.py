@@ -138,10 +138,18 @@ def build_gateway_events(audio_path: Path, config: dict[str, Any], output: Path)
         last_silence = max((event["t"] for event in events if event["type"] == "silence"), default=first_t + 0.9)
         events.append({"t": round(max(0.0, first_t + 0.05), 3), "type": "asr_partial", "text": asr_text, "speech": True})
         events.append({"t": round(last_silence, 3), "type": "silence", "text": "", "speech": False})
-    events = sorted(events, key=lambda item: item["t"])
+    events = dedupe_events(sorted(events, key=lambda item: item["t"]))
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(json.dumps(event, ensure_ascii=False) for event in events) + "\n", encoding="utf-8")
+
+    result_config = dict(config)
+    if result_config.get("vad_only"):
+        result_config = {
+            "vad_model": result_config.get("vad_model"),
+            "vad_revision": result_config.get("vad_revision"),
+            "vad_only": True,
+        }
 
     return AdapterResult(
         audio_path=str(audio_path),
@@ -149,8 +157,20 @@ def build_gateway_events(audio_path: Path, config: dict[str, Any], output: Path)
         events_path=str(output),
         vad_segments=extract_segments(vad_result),
         timings_ms={"vad": round(vad_ms, 2), "asr": round(asr_ms, 2)},
-        config=config,
+        config=result_config,
     )
+
+
+def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for event in events:
+        key = json.dumps(event, ensure_ascii=False, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(event)
+    return deduped
 
 
 def main() -> int:

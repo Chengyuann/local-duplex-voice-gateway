@@ -10,7 +10,7 @@ python scripts/duplex_voice_gateway.py demo/duplex_conversation.jsonl --output r
 python scripts/duplex_voice_gateway.py demo/duplex_conversation.jsonl --format json --output reports/demo_gateway_report.json
 python scripts/prepare_models.py --dry-run
 python scripts/export_openvino.py --model iic/SenseVoiceSmall --task automatic-speech-recognition --dry-run
-python adapters/openvino_placeholder.py --output reports/openvino_check.json
+python adapters/openvino_placeholder.py --output docs/evidence/openvino_check.json
 python -m py_compile scripts/duplex_voice_gateway.py scripts/run_demo_tests.py scripts/prepare_models.py scripts/export_openvino.py adapters/modelscope_speech.py adapters/openvino_placeholder.py server/speech_server.py client/gateway_client.py
 ```
 
@@ -76,8 +76,8 @@ OpenVINO runtime check on the current development machine:
 This environment does not have OpenVINO installed, so the repository includes a runtime check and IR benchmark helper rather than claiming accelerated latency numbers. On an Intel AI PC with OpenVINO installed, run:
 
 ```bash
-python adapters/openvino_placeholder.py --output reports/openvino_check.json
-python adapters/openvino_placeholder.py --model-xml models/openvino/sensevoice/openvino_model.xml --device CPU --iterations 10 --output reports/openvino_benchmark.json
+python adapters/openvino_placeholder.py --output docs/evidence/openvino_check.json
+python adapters/openvino_placeholder.py --model-xml models/openvino/sensevoice/openvino_model.xml --device CPU --iterations 10 --output docs/evidence/openvino_benchmark.json
 ```
 
 ## Real Model Smoke: ModelScope FSMN-VAD
@@ -87,24 +87,24 @@ The repository now includes a true local ModelScope/FunASR VAD path. A local wav
 Command:
 
 ```bash
-python adapters/modelscope_speech.py demo_audio/voice_demo.wav \
+python adapters/modelscope_speech.py demo/audio/voice_demo.wav \
   --vad-only \
   --output demo/from_vad_events.jsonl \
-  --summary reports/modelscope_vad_summary.json
+  --summary docs/evidence/modelscope_vad_summary.json
 python scripts/duplex_voice_gateway.py demo/from_vad_events.jsonl \
-  --output reports/from_vad_gateway_report.md
+  --output docs/evidence/from_vad_gateway_report.md
 ```
 
 Observed result on the current development machine:
 
 ```json
 {
-  "audio_path": "demo_audio/voice_demo.wav",
+  "audio_path": "demo/audio/voice_demo.wav",
   "asr_text": "",
   "events_path": "demo/from_vad_events.jsonl",
   "vad_segments": [[0, 4460]],
   "timings_ms": {
-    "vad": 1415.65,
+    "vad": 1752.8,
     "asr": 0.0
   },
   "config": {
@@ -127,6 +127,44 @@ The first uncached run also downloaded the VAD model from ModelScope and produce
 
 The VAD-only path does not produce `commit_turn` because it has no ASR text; it proves that a real local speech model can feed speech/silence timing into the Gateway. The ASR path is implemented in `adapters/modelscope_speech.py` and can be enabled by removing `--vad-only` after downloading `iic/SenseVoiceSmall`.
 
+## Real Model Smoke: SenseVoiceSmall ASR + Gateway Commit
+
+After installing `torch` and `torchaudio`, the full VAD + ASR adapter path was also run with `iic/SenseVoiceSmall`.
+
+Command:
+
+```bash
+python adapters/modelscope_speech.py demo/audio/voice_demo.wav \
+  --output demo/from_audio_events.jsonl \
+  --summary docs/evidence/modelscope_asr_summary.json
+python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl \
+  --output docs/evidence/from_audio_gateway_report.md
+```
+
+Observed result:
+
+```json
+{
+  "audio_path": "demo/audio/voice_demo.wav",
+  "asr_text": "帮我总结这份合同，等一下，先重点看付款周期。",
+  "events_path": "demo/from_audio_events.jsonl",
+  "vad_segments": [[0, 4460]],
+  "timings_ms": {
+    "vad": 1367.93,
+    "asr": 3994.89
+  }
+}
+```
+
+Gateway output:
+
+```text
+Committed turns: 1
+- commit_turn: 帮我总结这份合同，等一下，先重点看付款周期。
+```
+
+This verifies the full local audio-file path: local wav -> ModelScope VAD -> SenseVoiceSmall ASR -> Gateway events -> `commit_turn`.
+
 ## Persistent Server / Client Smoke
 
 The localhost server/client path was also verified with the cached ModelScope FSMN-VAD model.
@@ -140,7 +178,7 @@ python client/gateway_client.py demo/audio/voice_demo.wav \
   --server http://127.0.0.1:8765 \
   --vad-only \
   --events-output-name server_vad_events.jsonl \
-  --gateway-output reports/server_client_gateway_report.md
+  --gateway-output docs/evidence/server_client_gateway_report.md
 ```
 
 Observed health response:

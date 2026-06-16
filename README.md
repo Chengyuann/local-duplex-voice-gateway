@@ -60,6 +60,12 @@ python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl \
   --output reports/from_audio_gateway_report.md
 ```
 
+仓库中已包含一次真实 ModelScope VAD + SenseVoiceSmall ASR 生成的事件样例：
+
+```bash
+python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
+```
+
 ## 常驻 server/client 架构
 
 为避免每轮重载 ASR/VAD 模型，可以启动 localhost 常驻服务：

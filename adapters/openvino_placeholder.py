@@ -36,6 +36,11 @@ def benchmark_ir(model_xml: Path, device: str = "CPU", iterations: int = 5) -> d
     request = compiled.create_infer_request()
 
     feed = {}
+    dummy_note = (
+        "This generic IR benchmark feeds zero tensors because no model-specific "
+        "preprocessor is available. Use it only as a runtime smoke test; do not "
+        "report it as speech-model latency."
+    )
     for input_node in inputs:
         shape = []
         for dim in input_node.partial_shape:
@@ -52,6 +57,8 @@ def benchmark_ir(model_xml: Path, device: str = "CPU", iterations: int = 5) -> d
         "model": str(model_xml),
         "device": device,
         "iterations": iterations,
+        "benchmark_type": "runtime_smoke_dummy_input",
+        "note": dummy_note,
         "avg_latency_ms": round(sum(latencies) / len(latencies), 2),
         "min_latency_ms": round(min(latencies), 2),
         "max_latency_ms": round(max(latencies), 2),
