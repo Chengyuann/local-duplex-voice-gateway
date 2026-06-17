@@ -89,7 +89,7 @@ Local Duplex Voice Gateway 的工作流是这样的：
 
 ## 按 ModelScope 模型库接入
 
-你现在本机没有现成的语音模型，所以我没有把仓库做成“必须先下载某个模型才能跑”。当前版本先提供可复现的控制层；真实音频能力按 ModelScope 模型库逐步接入。
+为了降低复现门槛，仓库没有把启动流程绑定到某一个已预装的语音模型。当前版本先提供可复现的控制层；真实音频能力按 ModelScope 模型库逐步接入。
 
 第一层可以接 VAD。`iic/speech_fsmn_vad_zh-cn-16k-common-pytorch` 是 ModelScope 上的中文 16k VAD 模型，适合检测有效语音片段的起止点。它可以把连续音频切成带时间戳的 speech / silence 事件，供 Gateway 判断是否进入 `hold` 或 `commit_turn`。
 
