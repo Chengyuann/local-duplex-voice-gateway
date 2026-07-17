@@ -2,20 +2,18 @@
 
 ![Local Duplex Voice Gateway cover](assets/cover.jpg)
 
-一个面向 AI PC 的本地语音 Agent Skill。它不是单纯的 ASR 或 TTS demo，而是语音 Agent 的 turn-taking 控制层：判断用户是否说完、是否短暂停顿、是否插话打断、是否应该提交给 Agent 大脑。
+面向 AI PC 的本地全双工语音 Agent Skill。项目负责语音交互中的话轮控制：识别短暂停顿、提交完整语音意图、处理 TTS 播放期间的用户打断，并将稳定事件交给本地 Agent 大脑。
 
-## 为什么做这个
+## 已实现能力
 
-语音 Agent 难用的地方，很多时候不是“识别一句话”，而是这些细节：
+- JSONL 流式事件处理：`listen`、`hold`、`commit_turn`、`interrupt_tts`
+- ModelScope FSMN-VAD 本地语音活动检测
+- ModelScope SenseVoiceSmall 本地 ASR
+- localhost 常驻 speech server 与 Gateway client
+- OpenVINO EOU policy 实时推理
+- Markdown / JSON 会话报告
 
-- 用户停顿 300ms，是想继续说，还是已经说完？
-- TTS 还在播放时用户插话，要不要立刻停？
-- 用户说“嗯，等一下，我想改一下”，这是不是新的意图？
-- Agent 什么时候该调用工具，什么时候该继续听？
-
-Local Duplex Voice Gateway 把这些问题变成可复用的本地 Skill。
-
-## 快速开始
+## 基础验证
 
 ```bash
 python scripts/duplex_voice_gateway.py demo/duplex_conversation.jsonl
@@ -23,11 +21,9 @@ python scripts/duplex_voice_gateway.py demo/duplex_conversation.jsonl --format j
 python scripts/run_demo_tests.py
 ```
 
-基础 demo 只需要 Python 3.8+ 标准库。
+基础 JSONL demo 仅依赖 Python 3.8+ 标准库。
 
-## 真实本地语音链路
-
-安装真实语音适配器依赖：
+## 安装真实语音链路
 
 ```bash
 python -m venv .venv
@@ -42,33 +38,33 @@ python scripts/prepare_models.py --dry-run
 python scripts/prepare_models.py
 ```
 
-把本地 wav 转成 Gateway 事件，再交给网关处理：
+本地 wav 转 Gateway 事件：
 
 ```bash
-# 先跑轻量 VAD 真实链路
-python adapters/modelscope_speech.py /path/to/demo.wav \
+# VAD-only
+python adapters/modelscope_speech.py demo/audio/voice_demo.wav \
   --vad-only \
   --output demo/from_vad_events.jsonl \
   --summary reports/modelscope_vad_summary.json
 
-# 再跑 VAD + ASR 链路
-python adapters/modelscope_speech.py /path/to/demo.wav \
+# VAD + ASR
+python adapters/modelscope_speech.py demo/audio/voice_demo.wav \
   --output demo/from_audio_events.jsonl \
-  --summary reports/modelscope_adapter_summary.json
+  --summary reports/modelscope_asr_summary.json
 
 python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl \
   --output reports/from_audio_gateway_report.md
 ```
 
-仓库中已包含一次真实 ModelScope VAD + SenseVoiceSmall ASR 生成的事件样例：
+仓库已提交真实模型运行生成的事件样例：
 
-```bash
-python scripts/duplex_voice_gateway.py demo/from_audio_events.jsonl
-```
+- `demo/from_vad_events.jsonl`
+- `demo/from_audio_events.jsonl`
+- `demo/audio/voice_demo.wav`
 
-## 常驻 server/client 架构
+## 常驻服务
 
-为避免每轮重载 ASR/VAD 模型，可以启动 localhost 常驻服务：
+语音模型可常驻 localhost 服务，避免每轮重载：
 
 ```bash
 python server/speech_server.py --host 127.0.0.1 --port 8765
@@ -77,20 +73,20 @@ python server/speech_server.py --host 127.0.0.1 --port 8765
 另一个终端调用：
 
 ```bash
-python client/gateway_client.py /path/to/demo.wav \
+python client/gateway_client.py demo/audio/voice_demo.wav \
   --server http://127.0.0.1:8765 \
   --vad-only \
   --gateway-output reports/client_gateway_report.md
 ```
 
-服务接口：
+接口：
 
 - `GET /health`
 - `POST /v1/transcribe {"audio_path":"/path/to.wav"}`
 
-## OpenVINO 检查与导出
+## OpenVINO EOU
 
-当前仓库已包含一个轻量 OpenVINO EOU policy，用于在 Gateway 热路径中判断 `hold` / `commit`。先运行 benchmark：
+项目包含轻量 OpenVINO EOU policy。模型输入静音时长、文本长度、继续提示和结束提示，输出 hold / commit 分数。
 
 ```bash
 python adapters/openvino_eou.py \
@@ -100,7 +96,7 @@ python adapters/openvino_eou.py \
   --output docs/evidence/openvino_eou_benchmark.json
 ```
 
-再让 Gateway 使用 OpenVINO EOU 模型：
+Gateway 使用 OpenVINO EOU：
 
 ```bash
 python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
@@ -108,15 +104,18 @@ python scripts/duplex_voice_gateway.py demo/short_pause_continuation.jsonl \
   --output docs/evidence/openvino_gateway_report.md
 ```
 
-也可以检查 OpenVINO runtime：
+本机 CPU 实测 50 次推理：
+
+```text
+平均 0.0571ms
+最小 0.0398ms
+最大 0.6023ms
+```
+
+OpenVINO runtime 与导出工具：
 
 ```bash
 python adapters/openvino_placeholder.py --output reports/openvino_check.json
-```
-
-Optimum Intel 导出命令模板：
-
-```bash
 python scripts/export_openvino.py \
   --model iic/SenseVoiceSmall \
   --task automatic-speech-recognition \
@@ -124,27 +123,12 @@ python scripts/export_openvino.py \
   --dry-run
 ```
 
-如果模型已导出为 IR，可做本地 benchmark：
-
-```bash
-python adapters/openvino_placeholder.py \
-  --model-xml models/openvino/sensevoice/openvino_model.xml \
-  --device CPU \
-  --iterations 10 \
-  --output reports/openvino_benchmark.json
-```
-
-当前仓库验证摘要见 `docs/verification.md`。
-
-## 输入格式
-
-demo 使用 JSONL 模拟流式 ASR/VAD/TTS 事件：
+## 输入事件
 
 ```json
 {"t": 0.00, "type": "asr_partial", "text": "帮我", "speech": true}
 {"t": 0.42, "type": "asr_partial", "text": "帮我总结这份合同", "speech": true}
 {"t": 1.35, "type": "silence", "speech": false}
-{"t": 1.90, "type": "silence", "speech": false}
 {"t": 2.05, "type": "tts_start", "text": "我先帮你看一下"}
 {"t": 2.30, "type": "asr_partial", "text": "等一下", "speech": true}
 ```
@@ -154,21 +138,18 @@ demo 使用 JSONL 模拟流式 ASR/VAD/TTS 事件：
 | 事件 | 含义 |
 |---|---|
 | `listen` | 继续收音 |
-| `hold` | 用户短暂停顿，暂不提交 |
-| `commit_turn` | 用户一句话结束，可以交给 Agent |
-| `interrupt_tts` | 用户插话，应停止 TTS |
+| `hold` | 短暂停顿，暂不提交 |
+| `commit_turn` | 当前语音意图可以交给 Agent |
+| `interrupt_tts` | 用户插话，停止 TTS |
 | `tts_started` | TTS 开始播放 |
 | `tts_finished` | TTS 播放结束 |
 
-## AI PC / OpenVINO 规划
+## 验证材料
 
-当前仓库先提供可复现的语音网关控制层。实际产品接入时：
-
-- ModelScope VAD/ASR/TTS 模型作为本地语音工具来源，详见 `references/modelscope-voice-stack.md`。
-- OpenVINO 加速 ASR / VAD / EOU / TTS 模型，降低端侧延迟。
-- 35B 以下本地模型作为 Agent 大脑，负责理解用户意图和调用工具。
-- 本地 TTS 负责语音回复。
-- Gateway 管理打断、端点判断和会话状态。
+- [完整文章](docs/article.md)
+- [验证记录](docs/verification.md)
+- [ModelScope 模型接入说明](references/modelscope-voice-stack.md)
+- [运行证据](docs/evidence/)
 
 ## License
 

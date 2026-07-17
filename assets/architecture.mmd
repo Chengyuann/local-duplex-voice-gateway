@@ -6,7 +6,7 @@ flowchart LR
   ASR --> GW
   GW --> TD["Turn Detection\nTEN-framework/TEN_Turn_Detection"]
   TD --> GW
-  GW -->|"commit_turn"| LLM["≤35B 本地 Agent 大脑\nQwen3.6 / openBMB / Ollama"]
+  GW -->|"commit_turn"| LLM["≤35B 本地 Agent 大脑\nQwen3 / MiniCPM-o / Ollama"]
   LLM --> TOOL["本地工具调用\n文件 / 日历 / 代码 / 搜索"]
   LLM --> TTS["ModelScope TTS\niic/CosyVoice2-0.5B"]
   TTS --> SPK["本地播放"]

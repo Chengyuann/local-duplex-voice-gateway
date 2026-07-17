@@ -1,6 +1,6 @@
 # ModelScope Voice Stack
 
-Local Duplex Voice Gateway 不要求评审者本机预装语音模型。当前仓库先验证 turn-taking 控制层；真实音频链路可以按 ModelScope 模型库逐步接入。
+Local Duplex Voice Gateway 将 turn-taking 控制层与具体语音模型解耦。基础事件测试不依赖预装模型，真实音频链路按 ModelScope 模型库接入。
 
 ## 推荐接入顺序
 
@@ -65,9 +65,9 @@ print(text)
 
 ### 4. Turn Detection：`TEN-framework/TEN_Turn_Detection`
 
-用途：替换当前规则式 EOU，作为 full-duplex dialogue communication 的智能 turn detection 模型。ModelScope 模型卡说明它面向人类与 AI Agent 的自然动态沟通，专门处理自然 turn-taking cues。
+用途：作为 full-duplex dialogue communication 的 turn detection 模型。ModelScope 模型卡说明它面向人类与 AI Agent 的动态沟通，处理自然 turn-taking cues。
 
-在本项目中，TEN Turn Detection 可以作为 Gateway 的 `should_commit / should_hold / should_interrupt` 决策模块；当前规则引擎是可复现 baseline，后续可用模型输出替代或融合规则分数。
+TEN Turn Detection 可作为 Gateway 的 `should_commit / should_hold / should_interrupt` 决策模块，与规则分数或 OpenVINO EOU policy 融合。
 
 ### 5. TTS：`iic/CosyVoice2-0.5B`
 
@@ -82,9 +82,9 @@ print(text)
 - `Qwen/Qwen2.5-Omni-7B-AWQ`：7B 级端到端多模态模型，模型卡说明支持文本、图像、音频、视频理解，并能生成文本和自然语音流式响应；AWQ 版本强调低显存优化。
 - `OpenBMB/MiniCPM-o-2_6`：8B 参数，模型卡说明支持中英文实时语音对话和多模态 live streaming。
 - `OpenBMB/MiniCPM-o-4_5`：9B 参数，模型卡说明支持 full-duplex multimodal live streaming，可同时处理连续音视频输入并并发生成文本和语音输出。
-- `mapjack/moshi`：ModelScope 上的 Moshi 模型卡将其描述为 full-duplex spoken dialogue framework，适合参考“真正全双工语音”的产品体验。
+- `mapjack/moshi`：ModelScope 上的 Moshi 模型卡将其描述为 full-duplex spoken dialogue framework，可用于参考实时双向语音的交互方式。
 
-这些端到端模型较大，不适合作为评审 demo 的硬依赖。更稳的提交策略是：仓库用轻量 Gateway 验证事件协议，文章里说明后续可以把这些模型作为 ASR/TTS/Agent 组合或端到端替代。
+这些端到端模型体积较大，不作为基础测试的硬依赖。轻量 Gateway 用于验证事件协议，端到端模型可作为 ASR/TTS/Agent 组合的替代方案。
 
 ## 适配器接口建议
 
@@ -97,4 +97,4 @@ Gateway 只要求适配器输出统一事件：
 {"t": 1.40, "type": "asr_partial", "text": "等一下", "speech": true}
 ```
 
-这样 ModelScope 模型可以逐步替换，不影响 Agent 侧协议。
+ModelScope 模型可以按需替换，不影响 Agent 侧协议。

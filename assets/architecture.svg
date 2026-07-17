@@ -42,8 +42,8 @@
 
   <rect class="agent" x="900" y="245" width="220" height="112" rx="16"/>
   <text class="txt label" x="932" y="284">≤35B Agent</text>
-  <text class="txt small" x="932" y="314">Qwen3.6 / openBMB</text>
-  <text class="txt small" x="932" y="338">Ollama / QwenPaw / Trae</text>
+  <text class="txt small" x="932" y="314">Qwen3 / MiniCPM-o</text>
+  <text class="txt small" x="932" y="338">Ollama / Trae / local agent</text>
 
   <rect class="tool" x="1170" y="200" width="150" height="86" rx="16"/>
   <text class="txt label" x="1206" y="235">工具</text>

@@ -1,6 +1,6 @@
 # Voice Model Notes For Article
 
-本项目的核心不是重新训练一个全能语音大模型，而是把本地语音 Agent 所需的 ASR、VAD、EOU、TTS 和本地 LLM 组织成一个可复用的 Skill。
+本项目不重新训练全能语音大模型，而是把本地语音 Agent 所需的 ASR、VAD、EOU、TTS 和本地 LLM 组织成可复用 Skill。
 
 当前可参考的 35B 以下方向：
 
@@ -21,4 +21,4 @@ OpenVINO 位置：
 
 - 不要写成普通 ASR/TTS 工具；要强调“语音 Agent 控制层”。
 - 突出 barge-in、打断、短暂停顿、EOU、全双工体验。
-- 强调当前仓库可运行，后续模型适配器可替换。
+- 强调已运行的本地链路与可替换模型适配器。
